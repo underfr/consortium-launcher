@@ -2,7 +2,8 @@
 // pack repo (launcher.json / pack.toml); only bootstrap values are hardcoded here.
 
 /** Base URL of the packwiz pack (GitHub Pages). Must end with a slash. */
-export const PACK_BASE_URL = 'https://underfr.github.io/consortium-pack/'
+// GitHub Pages (https://underfr.github.io/consortium-pack/) once enabled; raw.githubusercontent.com meanwhile.
+export const PACK_BASE_URL = 'https://raw.githubusercontent.com/underfr/consortium-pack/main/'
 
 /**
  * Entra application (client) ID of the "Consortium Launcher" app registration.

@@ -36,6 +36,7 @@
     "electron-vite": "5.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "tsx": "4.23.13",
     "typescript": "^5.9.0",
     "vite": "^7.1.0"
   }

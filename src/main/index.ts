@@ -1,7 +1,9 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
 import log from 'electron-log/main'
-import { initAutoUpdate } from './core/update'
+import { resolvePaths } from './core/paths'
+import { initAutoUpdate } from './electron/update'
+import { registerIpc } from './ipc'
 
 log.initialize()
 log.transports.file.level = 'info'
@@ -9,9 +11,9 @@ log.transports.file.level = 'info'
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 960,
-    height: 600,
-    minWidth: 800,
-    minHeight: 520,
+    height: 640,
+    minWidth: 820,
+    minHeight: 560,
     show: false,
     autoHideMenuBar: true,
     title: 'Consortium Launcher',
@@ -24,6 +26,12 @@ function createWindow(): BrowserWindow {
   })
 
   win.on('ready-to-show', () => win.show())
+
+  // Renderer errors land in the same log file as the main process, so a player can send one file.
+  win.webContents.on('console-message', (event) => {
+    if (event.level === 'error') log.error(`renderer: ${event.message} (${event.sourceId}:${event.lineNumber})`)
+    else if (event.level === 'warning') log.warn(`renderer: ${event.message}`)
+  })
 
   // Every external link opens in the system browser, never inside the launcher.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -39,13 +47,13 @@ function createWindow(): BrowserWindow {
   return win
 }
 
-ipcMain.handle('app:version', () => app.getVersion())
-
 app.whenReady().then(() => {
+  const paths = resolvePaths(app.getPath('userData'))
   log.info(
-    `Consortium Launcher ${app.getVersion()} starting (${process.platform}-${process.arch}, packaged=${app.isPackaged})`,
+    `Consortium Launcher ${app.getVersion()} starting (${process.platform}-${process.arch}, packaged=${app.isPackaged}, root=${paths.root})`,
   )
   const win = createWindow()
+  registerIpc(win, paths)
   initAutoUpdate(win)
 
   app.on('activate', () => {

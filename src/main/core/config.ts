@@ -32,6 +32,7 @@ export const ALLOWED_DOWNLOAD_HOSTS = [
   'maven.ftb.dev',
   'github.com',
   'objects.githubusercontent.com',
+  'release-assets.githubusercontent.com',
   'raw.githubusercontent.com',
 ]
 

@@ -184,3 +184,30 @@ export class AuthError extends Error { code: 'not-approved' | 'no-xbox-profile' 
 - `smoke-pack.ts <root>`: syncPack from `https://raw.githubusercontent.com/underfr/consortium-pack/main/` into instance `consortium`, twice; second pass unchanged=true; then simulate a removed file by editing the state and check it is re-downloaded. Prints `OK: <n> files`.
 - `smoke-launch.ts <root>`: after smoke-install and smoke-pack, launchGame with demo=true, a placeholder profile and token, waits until <paths.logs>/game-latest.log contains "Loading" from NeoForge or 60 s elapse, then kills the process. Prints `OK: game started (NeoForge <v>, <n> mods)` when the game log mentions the loader and the mod count.
 - `smoke-auth.ts`: unit-tests the PKCE helpers (verifier/challenge S256 against a known vector) and the loopback server (start, GET /?code=x&state=y, receives the code, closes), with a fake token endpoint via the injected `fetch`. Prints `OK: auth helpers`.
+
+## Implementation notes (2026-09-14, after review)
+
+Deviations from the API text above that were accepted during implementation and review:
+
+- `download.ts` also exports `fetchBytes`, `hashBytes`, `userAgent`, `DownloadFailure`; `DownloadError`
+  carries `reason` ('policy' | 'network' | 'status' | 'checksum' | 'content' | 'cancelled' | 'disk') and
+  `status`. Redirects are followed manually (max 5 hops) and every hop is checked against the host
+  allow-list. Local filesystem errors (ENOSPC, EACCES, EISDIR...) are never retried.
+- `pack.ts` exports `PackError`; `SyncOptions` accepts `signal`. The state file also stores `options`,
+  `skipped` and a per-file `source`, which the short-circuit needs to prove the state still covers the
+  index in both directions. `SyncResult.skipped` counts files that needed no download.
+- `java.ts` performs the mac/linux `chmod 0755` and creates the manifest `link` entries itself
+  (`@xmcl/installer` 6.1.2 ignores both) and writes a `.verified` marker after a successful
+  `java -version`, so an interrupted runtime download is repaired instead of trusted.
+- `vanilla.ts` re-validates json, jar and libraries by sha1 on every run; assets are size-checked once a
+  full validation pass has completed (a marker records it), because hashing 825 MB of assets costs
+  1.5 s per Play click.
+- `neoforge.ts` gate also verifies every library of the resolved NeoForge version, not only the 4
+  processor outputs.
+- `launch.ts`: `userType` is omitted (the library defaults to msa and its type does not list it);
+  `-Dlog4j.configurationFile` is dropped so `game-latest.log` stays readable; `launchGame` resolves only
+  after the process is confirmed started (spawn errors reject).
+- `settings.ts`: `loadSettings(paths, opts?)`; `saveSettings` sanitizes values.
+- `auth.ts`: `new AuthError(message, code, { cause? })`. `@xmcl/user` also calls
+  `device.auth.xboxlive.com` and a second XSTS authorize for `http://xboxlive.com` (source of the xuid).
+- Electron glue (auto-update, token store) lives in `src/main/electron/`, not in core.

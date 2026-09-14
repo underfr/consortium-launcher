@@ -32,13 +32,13 @@ table shows what is actually implemented on `main` today.
 |---|---|---|
 | Electron/React application shell, in-app disclaimer | implemented | `src/` |
 | Self-update on start (GitHub Releases, `electron-updater`, differential downloads) | implemented and verified end to end (v0.1.0 to v0.1.1) | `src/main/core/update.ts` |
-| Java 21 provisioning from Mojang's runtime manifest | planned, milestone 1 | `src/main/core/java.ts` |
-| Vanilla install from Mojang's servers with SHA-1 verification | planned, milestone 1 | `src/main/core/vanilla.ts` |
-| NeoForge install via the official installer | planned, milestone 1 | `src/main/core/neoforge.ts` |
-| packwiz modpack sync | planned, milestone 1 | `src/main/core/pack.ts` |
-| Microsoft sign-in (auth code + PKCE) and Xbox Live / XSTS / Minecraft Services chain, entitlement and profile checks | planned, milestone 1 (blocked on Mojang AppID approval) | `src/main/core/auth.ts` |
-| Game launch | planned, milestone 1 | `src/main/core/launch.ts` |
-| Low RAM / low graphics preset | planned, milestone 1 | `src/main/core/settings.ts` |
+| Java 21 provisioning from Mojang's runtime manifest | implemented, smoke-tested | `src/main/core/java.ts` |
+| Vanilla install from Mojang's servers with SHA-1 verification | implemented, smoke-tested | `src/main/core/vanilla.ts` |
+| NeoForge install via the official installer | implemented, smoke-tested | `src/main/core/neoforge.ts` |
+| packwiz modpack sync | implemented, smoke-tested against the live pack | `src/main/core/pack.ts` |
+| Microsoft sign-in (auth code + PKCE) and Xbox Live / XSTS / Minecraft Services chain, entitlement and profile checks | implemented; unit-tested with stubbed endpoints, end-to-end test blocked on Mojang AppID approval | `src/main/core/auth.ts` |
+| Game launch | implemented; NeoForge 21.1.250 boots with the test mods | `src/main/core/launch.ts` |
+| Low RAM / low graphics preset | implemented | `src/main/core/settings.ts` |
 | Code-signed release builds | planned | see "Updates and signing" |
 
 ## Microsoft application registration

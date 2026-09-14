@@ -65,15 +65,15 @@ On-disk layout on the player's machine (`%APPDATA%/consortium-launcher/`):
 | 0 | Entra app + Mojang form (§3) | 20 min + wait |
 | 1 | Scaffold electron-vite react-ts; pin exact deps; `npm run build` green | DONE 2026-09-14 (commit c37af6b) |
 | 2 | Prove the **self-update channel first** (v0.1.0 → v0.1.1 via GitHub Release + Actions) - the one thing you cannot fix remotely if it ships broken | DONE 2026-09-14: v0.1.0 and v0.1.1 built by CI on win/mac-arm64/linux and published with the disclaimer in the notes; installed v0.1.0 found 0.1.1, downloaded a differential update (822 KB of 118 MB via blockmap), installed silently and relaunched as 0.1.1 |
-| 3 | `core/download.ts`: https-only host allowlist, `.part` + atomic rename, sha1/256/512 verify, retry, concurrency 8 | 0.5 d |
-| 4 | `core/java.ts`: Mojang runtime manifest → Java 21 install, `java -version` sanity check | 0.5 d |
-| 5 | `core/vanilla.ts`: resolve 1.21.1 via `version_manifest_v2.json` (never hardcode the package URL - Mojang re-published 1.21.1.json on 2026-09-14), json + jar + libraries + assets | 0.5 d |
-| 6 | `core/neoforge.ts`: gated `installNeoForged('neoforge', ver, mc, {java, inheritsFrom})`, verify the 4 artifacts | 0.5 d |
-| 7 | `core/launch.ts`: `Version.parse` + `launch({gamePath, resourcePath, javaPath, maxMemory, extraJVMArgs, quickPlayMultiplayer})`, `javaw.exe` on Windows, log capture | 0.5 d |
-| 8 | Pack repo: `packwiz init --mc-version 1.21.1 --modloader neoforge --neoforge-version 21.1.250`, install 2 test mods (e.g. `jei`, `jade`), push to Pages | 0.5 d |
-| 9 | `core/pack.ts`: pack.toml → pack-format check → index.toml hash → per-file diff vs `sync-state.json` → side/option/preserve → download → delete vanished files; short-circuit when hashes unchanged | 1.5 d |
-| 10 | `core/auth.ts`: PKCE loopback + XBL/XSTS/MC chain + entitlement/profile + safeStorage refresh token; readable errors for XErr 2148916233/2148916238 and NOT_FOUND profile (Game Pass) | 1.5 d |
-| 11 | UI: account chip, Play, phase-labelled progress, Low-RAM toggle, news/MOTD from `launcher.json`, "export diagnostics" zip | 1.5 d |
+| 3 | `core/download.ts`: https-only host allowlist, `.part` + atomic rename, sha1/256/512 verify, retry, concurrency 8 | DONE 2026-09-14 (manual redirect following, allow-list per hop, disk errors not retried) |
+| 4 | `core/java.ts`: Mojang runtime manifest → Java 21 install, `java -version` sanity check | DONE 2026-09-14 (chmod + symlinks done by us, .verified marker) |
+| 5 | `core/vanilla.ts`: resolve 1.21.1 via `version_manifest_v2.json` (never hardcode the package URL - Mojang re-published 1.21.1.json on 2026-09-14), json + jar + libraries + assets | DONE 2026-09-14 |
+| 6 | `core/neoforge.ts`: gated `installNeoForged('neoforge', ver, mc, {java, inheritsFrom})`, verify the 4 artifacts | DONE 2026-09-14 (gate also checks the version libraries) |
+| 7 | `core/launch.ts`: `Version.parse` + `launch({gamePath, resourcePath, javaPath, maxMemory, extraJVMArgs, quickPlayMultiplayer})`, `javaw.exe` on Windows, log capture | DONE 2026-09-14 (boots NeoForge 21.1.250 + test mods in demo mode) |
+| 8 | Pack repo: `packwiz init --mc-version 1.21.1 --modloader neoforge --neoforge-version 21.1.250`, install 2 test mods (e.g. `jei`, `jade`), push to Pages | DONE 2026-09-14 (github.com/underfr/consortium-pack, served from raw.githubusercontent.com until Pages is enabled) |
+| 9 | `core/pack.ts`: pack.toml → pack-format check → index.toml hash → per-file diff vs `sync-state.json` → side/option/preserve → download → delete vanished files; short-circuit when hashes unchanged | DONE 2026-09-14 (6-scenario smoke test) |
+| 10 | `core/auth.ts`: PKCE loopback + XBL/XSTS/MC chain + entitlement/profile + safeStorage refresh token; readable errors for XErr 2148916233/2148916238 and NOT_FOUND profile (Game Pass) | DONE 2026-09-14 (stubbed end-to-end test; real login waits for Mojang approval) |
+| 11 | UI: account chip, Play, phase-labelled progress, Low-RAM toggle, news/MOTD from `launcher.json`, "export diagnostics" zip | DONE 2026-09-14 (v0.2.0) |
 | 12 | Acceptance on a clean second Windows machine: install from GitHub Release → login → Play → NeoForge starts with the 2 mods → add a 3rd mod to the pack → relaunch → it appears | 1 d |
 
 Total ≈ **10-12 days of part-time work**, auth step gated by Mojang approval.

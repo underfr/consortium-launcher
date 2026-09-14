@@ -47,6 +47,8 @@ const TEST_MODS = ['jei', 'jade']
 const WINDOW_READY_MARKERS = ['backend library: lwjgl', 'reloading resourcemanager', 'registering resource reload listener', 'openal initialized']
 
 const rootArg = process.argv[2]
+/** --keep leaves the game running for a manual test instead of stopping it once it is up. */
+const KEEP = process.argv.includes('--keep')
 if (!rootArg) {
   console.error('usage: npx tsx scripts/smoke-launch.ts <root>')
   process.exit(1)
@@ -367,6 +369,15 @@ async function launchAndWatch(javaPath: string): Promise<void> {
     } else if (Date.now() - watch.lastGrowth >= STALL_MS && watch.size > 0) {
       failure = `the game log stopped growing for ${STALL_MS / 1000} s (loader=${watch.loaderSeen}, mods=${watch.mods.join(',') || 'none'})`
     }
+  }
+
+  if (KEEP && failure === null) {
+    const seen = watch.mods.length > 0 ? watch.mods.join(', ') : 'none seen yet'
+    console.log(`
+OK: game started (NeoForge ${NEO_VERSION}, mods: ${seen}), keeping it running for a manual test. Close the game window to end.`)
+    await new Promise<void>((resolveExit) => proc.once('exit', () => resolveExit()))
+    log('game closed by the player')
+    return
   }
 
   log(`stopping the game (pid ${String(proc.pid)})`)

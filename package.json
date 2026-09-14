@@ -1,6 +1,6 @@
 {
   "name": "consortium-launcher",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Launcher for The Consortium modded server. NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.",
   "main": "./out/main/index.js",
   "author": "The Consortium",

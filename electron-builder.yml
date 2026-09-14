@@ -1,0 +1,35 @@
+appId: org.consortium.launcher
+productName: Consortium Launcher
+directories:
+  buildResources: build
+  output: dist
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.*'
+  - '!{README.md,dev-app-update.yml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!{.env,.env.*,.npmrc}'
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: true
+  perMachine: false
+  artifactName: ${name}-setup-${version}.${ext}
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+mac:
+  target:
+    - dmg
+    - zip
+  category: public.app-category.games
+linux:
+  target:
+    - AppImage
+  category: Game
+publish:
+  provider: github
+  owner: underfr
+  repo: consortium-launcher
+  releaseType: release

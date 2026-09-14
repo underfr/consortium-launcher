@@ -22,6 +22,7 @@ export function initAutoUpdate(win: BrowserWindow): void {
   autoUpdater.logger = log
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
+  autoUpdater.disableWebInstaller = true
 
   autoUpdater.on('checking-for-update', () => publish(win, { state: 'checking' }))
   autoUpdater.on('update-available', (info) => publish(win, { state: 'available', version: info.version }))

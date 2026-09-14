@@ -43,7 +43,7 @@ export default function App(): React.JSX.Element {
       <UpdateBanner status={update} />
 
       <main>
-        <p className="status">Milestone 1 in progress: login, install and Play are not wired yet. (update channel test build)</p>
+        <p className="status">Milestone 1 in progress: login, install and Play are not wired yet.</p>
         <button className="play" disabled>
           Play
         </button>

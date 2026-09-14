@@ -31,7 +31,7 @@ table shows what is actually implemented on `main` today.
 | Feature | Status | Where |
 |---|---|---|
 | Electron/React application shell, in-app disclaimer | implemented | `src/` |
-| Self-update check on start (GitHub Releases, `electron-updater`) | implemented (wiring), no release published yet | `src/main/index.ts` |
+| Self-update on start (GitHub Releases, `electron-updater`, differential downloads) | implemented and verified end to end (v0.1.0 to v0.1.1) | `src/main/core/update.ts` |
 | Java 21 provisioning from Mojang's runtime manifest | planned, milestone 1 | `src/main/core/java.ts` |
 | Vanilla install from Mojang's servers with SHA-1 verification | planned, milestone 1 | `src/main/core/vanilla.ts` |
 | NeoForge install via the official installer | planned, milestone 1 | `src/main/core/neoforge.ts` |

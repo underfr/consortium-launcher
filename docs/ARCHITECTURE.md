@@ -63,8 +63,8 @@ On-disk layout on the player's machine (`%APPDATA%/consortium-launcher/`):
 | # | Step | Est. |
 |---|---|---|
 | 0 | Entra app + Mojang form (§3) | 20 min + wait |
-| 1 | Scaffold electron-vite react-ts; pin exact deps; `npm run build` green | 0.5 d |
-| 2 | Prove the **self-update channel first** (v0.1.0 → v0.1.1 via GitHub Release + Actions) - the one thing you cannot fix remotely if it ships broken | 1 d |
+| 1 | Scaffold electron-vite react-ts; pin exact deps; `npm run build` green | DONE 2026-09-14 (commit c37af6b) |
+| 2 | Prove the **self-update channel first** (v0.1.0 → v0.1.1 via GitHub Release + Actions) - the one thing you cannot fix remotely if it ships broken | DONE 2026-09-14: v0.1.0 and v0.1.1 built by CI on win/mac-arm64/linux and published with the disclaimer in the notes; installed v0.1.0 found 0.1.1, downloaded a differential update (822 KB of 118 MB via blockmap), installed silently and relaunched as 0.1.1 |
 | 3 | `core/download.ts`: https-only host allowlist, `.part` + atomic rename, sha1/256/512 verify, retry, concurrency 8 | 0.5 d |
 | 4 | `core/java.ts`: Mojang runtime manifest → Java 21 install, `java -version` sanity check | 0.5 d |
 | 5 | `core/vanilla.ts`: resolve 1.21.1 via `version_manifest_v2.json` (never hardcode the package URL - Mojang re-published 1.21.1.json on 2026-09-14), json + jar + libraries + assets | 0.5 d |
@@ -77,5 +77,7 @@ On-disk layout on the player's machine (`%APPDATA%/consortium-launcher/`):
 | 12 | Acceptance on a clean second Windows machine: install from GitHub Release → login → Play → NeoForge starts with the 2 mods → add a 3rd mod to the pack → relaunch → it appears | 1 d |
 
 Total ≈ **10-12 days of part-time work**, auth step gated by Mojang approval.
+
+Observed during step 2: the `macos-latest` runner is Apple Silicon, so only arm64 macOS artifacts are produced; add `arch: [x64, arm64]` to `mac.target` if any player has an Intel Mac. Release assets with spaces get renamed with dots by GitHub (`Consortium.Launcher-...`), which electron-updater handles.
 
 Milestone 2 (after M1): Ed25519-signed `pack.toml`/`launcher.json` (fail-closed; `node:crypto` built-in), optional-mod checkboxes UI, device-code auth fallback, macOS signing decision, Discord RPC, server status ping.

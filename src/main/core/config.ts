@@ -9,7 +9,7 @@ export const PACK_BASE_URL = 'https://underfr.github.io/consortium-pack/'
  * Not a secret. Must be allow-listed by Mojang (https://aka.ms/mce-reviewappid)
  * before api.minecraftservices.com accepts it.
  */
-export const MS_CLIENT_ID = 'CHANGE_ME'
+export const MS_CLIENT_ID = 'c59d3724-2960-47b2-8d24-95130e9063e9'
 
 export const MS_AUTHORITY = 'https://login.microsoftonline.com/consumers/oauth2/v2.0'
 export const MS_SCOPE = 'XboxLive.signin offline_access'

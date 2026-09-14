@@ -20,7 +20,7 @@ official Minecraft Launcher in exactly the same way.
 - **Owner and maintainer:** underfr (https://github.com/underfr), on behalf of The Consortium
   server administrators. We, not Mojang or Microsoft, are responsible for this launcher, for the
   server, and for all player data handled by either.
-- **Contact:** `<contact e-mail, identical to the one on Mojang's AppID form>`. Bug reports and
+- **Contact:** contact.consortiummc@gmail.com (the same address given on Mojang's AppID form). Bug reports and
   feature requests may additionally be filed as GitHub issues on this repository.
 
 ## Implementation status
@@ -47,7 +47,7 @@ The launcher signs in with its own Microsoft Entra application:
 
 - Display name (what players see on Microsoft's consent screen): **Consortium Launcher**
 - Publisher: underfr
-- Application (client) ID: `<filled in once the registration exists; public-client ID, not a secret>`
+- Application (client) ID: `c59d3724-2960-47b2-8d24-95130e9063e9` (public-client ID, not a secret)
 - Tenant: `consumers` (personal Microsoft accounts only), public client, no client secret
 - OAuth scopes requested: `XboxLive.signin offline_access`
 - Redirect URI: loopback `http://localhost:<ephemeral port>`, registered under "Mobile and

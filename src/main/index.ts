@@ -1,11 +1,10 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
 import log from 'electron-log/main'
-import { autoUpdater } from 'electron-updater'
+import { initAutoUpdate } from './core/update'
 
 log.initialize()
 log.transports.file.level = 'info'
-autoUpdater.logger = log
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -43,14 +42,11 @@ function createWindow(): BrowserWindow {
 ipcMain.handle('app:version', () => app.getVersion())
 
 app.whenReady().then(() => {
-  log.info(`Consortium Launcher ${app.getVersion()} starting (${process.platform}-${process.arch})`)
-  createWindow()
-
-  // Self-update check on every start. Only meaningful in a packaged build with a
-  // published GitHub Release; in dev it would just log an error.
-  if (app.isPackaged) {
-    autoUpdater.checkForUpdatesAndNotify().catch((err) => log.warn('update check failed', err))
-  }
+  log.info(
+    `Consortium Launcher ${app.getVersion()} starting (${process.platform}-${process.arch}, packaged=${app.isPackaged})`,
+  )
+  const win = createWindow()
+  initAutoUpdate(win)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

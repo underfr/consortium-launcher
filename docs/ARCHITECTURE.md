@@ -80,4 +80,4 @@ Total ≈ **10-12 days of part-time work**, auth step gated by Mojang approval.
 
 Observed during step 2: the `macos-latest` runner is Apple Silicon, so only arm64 macOS artifacts are produced; add `arch: [x64, arm64]` to `mac.target` if any player has an Intel Mac. Release assets with spaces get renamed with dots by GitHub (`Consortium.Launcher-...`), which electron-updater handles.
 
-Milestone 2 (after M1): Ed25519-signed `pack.toml`/`launcher.json` (fail-closed; `node:crypto` built-in), optional-mod checkboxes UI, device-code auth fallback, macOS signing decision, Discord RPC, server status ping.
+Milestone 2 (after M1): Ed25519-signed `pack.toml`/`launcher.json` (fail-closed; `node:crypto` built-in), optional-mod checkboxes UI (DONE 2026-09-16, v0.3.0: `[option]` entries listed with their description, choices in `settings.json`, low preset and requirement rules read from `launcher.json`), device-code auth fallback, macOS signing decision, Discord RPC, server status ping.

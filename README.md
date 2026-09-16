@@ -39,6 +39,7 @@ table shows what is actually implemented on `main` today.
 | Microsoft sign-in (auth code + PKCE) and Xbox Live / XSTS / Minecraft Services chain, entitlement and profile checks | implemented; unit-tested with stubbed endpoints, end-to-end test blocked on Mojang AppID approval | `src/main/core/auth.ts` |
 | Game launch | implemented; NeoForge 21.1.250 boots with the test mods | `src/main/core/launch.ts` |
 | Low RAM / low graphics preset | implemented | `src/main/core/settings.ts` |
+| Optional mods (pack `[option]` entries, settings, low preset rule from launcher.json) | implemented, smoke-tested (`scripts/smoke-pack.ts` runs 7 to 9, `scripts/smoke-settings.ts`) | `src/main/core/pack.ts`, `src/shared/options.ts`, `src/renderer/src/App.tsx` |
 | Code-signed release builds | planned | see "Updates and signing" |
 
 ## Microsoft application registration
@@ -119,6 +120,10 @@ fallback path.
 - The only game setting the launcher writes is the optional "low RAM / low graphics" preset,
   which sets the JVM heap size and a handful of `options.txt` graphics values (render distance,
   graphics quality). Nothing else in the game's configuration is touched.
+- Optional entries of the pack (shaders, cosmetic client mods) are plain checkboxes in the
+  launcher: a choice only decides whether that file is downloaded or removed at the next Play.
+  The low RAM preset holds the entries the pack names in `launcher.json` off, and a shader pack
+  stays off while the shader loader it needs is off.
 
 ### Server rules
 

@@ -47,6 +47,22 @@ export interface PackInfo {
   files: number
 }
 
+export type PackSide = 'both' | 'client' | 'server'
+
+/**
+ * One optional entry of the pack (a metafile whose [option] block says optional = true), as the
+ * player sees it. `file` is the metafile path and the key of Settings.options and of the
+ * enabledOptions record given to syncPack, e.g. "mods/iris.pw.toml" or "shaderpacks/foo.pw.toml".
+ */
+export interface PackOption {
+  file: string
+  name: string
+  description?: string
+  /** What the pack installs when the player never made a choice. */
+  default: boolean
+  side: PackSide
+}
+
 export interface SyncResult {
   pack: PackInfo
   downloaded: number
@@ -54,9 +70,22 @@ export interface SyncResult {
   skipped: number
   /** True when pack.toml and index.toml hashes matched the last sync and nothing was touched. */
   unchanged: boolean
+  /** Optional entries of the pack for this side, in index order (from the cache when unchanged). */
+  options: PackOption[]
 }
 
-export interface LauncherJson {
+/**
+ * Rules the pack publishes in launcher.json about its optional entries. Both fields are optional
+ * in the file (an older pack has neither) and always present here, empty when absent.
+ */
+export interface OptionRules {
+  /** Metafile paths forced off while the low RAM preset is active, e.g. ["mods/iris.pw.toml"]. */
+  lowPresetDisables: string[]
+  /** Metafile path -> metafile path it needs; the entry is forced off whenever its requirement is off. */
+  optionRequires: Record<string, string>
+}
+
+export interface LauncherJson extends OptionRules {
   schemaVersion: 1
   minLauncherVersion: string
   server: { name: string; address: string }
@@ -74,4 +103,6 @@ export interface Settings {
   preset: PresetId
   /** Optional overrides of the preset's -Xmx, in MB. */
   maxMemoryMb?: number
+  /** Player choices for optional entries, keyed by metafile path. A missing key means the pack default. */
+  options?: Record<string, boolean>
 }

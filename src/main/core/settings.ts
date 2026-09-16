@@ -1,6 +1,6 @@
-// Player settings (preset choice, optional memory override) as JSON under <root>/state.
-// Kept forgiving on purpose: a missing or damaged file falls back to the defaults instead of
-// blocking the Play button, and every value is sanitized both when read and when written.
+// Player settings (preset choice, optional memory override, optional-mod choices) as JSON under
+// <root>/state. Kept forgiving on purpose: a missing or damaged file falls back to the defaults
+// instead of blocking the Play button, and every value is sanitized both when read and when written.
 
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -8,12 +8,20 @@ import type { LaunchPreset, PresetId, Settings } from '../../shared/types'
 import { defaultPreset, lowPreset } from './launch'
 import type { LauncherPaths } from './paths'
 
+// The optional-mod rule lives in src/shared/options.ts (pure, also used by the renderer); the Play
+// handler and the smoke tests reach it through this module like the rest of the settings API.
+export { effectiveOptions, resolveOptions } from '../../shared/options'
+export type { OptionLock, ResolvedOption } from '../../shared/options'
+
 export const SETTINGS_FILE = 'settings.json'
 /** Bounds of the player's -Xmx override, in MB. */
 export const MIN_MEMORY_MB = 2048
 export const MAX_MEMORY_MB = 12288
 
 const PRESET_IDS: readonly PresetId[] = ['default', 'low']
+
+/** Optional-mod choices are keyed by metafile path; anything else in the record is noise. */
+const OPTION_KEY_SUFFIX = '.pw.toml'
 
 export function defaultSettings(): Settings {
   return { preset: 'default' }
@@ -60,13 +68,24 @@ export function presetFor(settings: Settings, totalMemoryBytes: number): LaunchP
   return preset
 }
 
-/** Keeps only the fields the launcher knows, with valid values; anything else becomes the default. */
+/**
+ * Keeps only the fields the launcher knows, with valid values; anything else becomes the default.
+ * Optional-mod choices survive only as "<path>.pw.toml": boolean pairs; the record is omitted when empty.
+ */
 export function normalizeSettings(raw: unknown): Settings {
   const source = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {}
   const preset = PRESET_IDS.find((id) => id === source['preset']) ?? 'default'
   const memory = source['maxMemoryMb']
   const settings: Settings = { preset }
   if (typeof memory === 'number' && Number.isFinite(memory) && memory > 0) settings.maxMemoryMb = clampMemory(memory)
+  const options = source['options']
+  if (typeof options === 'object' && options !== null && !Array.isArray(options)) {
+    const kept: Record<string, boolean> = {}
+    for (const [key, value] of Object.entries(options as Record<string, unknown>)) {
+      if (key.endsWith(OPTION_KEY_SUFFIX) && key.length > OPTION_KEY_SUFFIX.length && typeof value === 'boolean') kept[key] = value
+    }
+    if (Object.keys(kept).length > 0) settings.options = kept
+  }
   return settings
 }
 

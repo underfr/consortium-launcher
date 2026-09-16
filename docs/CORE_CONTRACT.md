@@ -125,7 +125,9 @@ export interface SyncOptions {
   baseUrl: string            // must end with '/', pack.toml lives at baseUrl + 'pack.toml'
   side: 'client' | 'server'
   report: ProgressReporter
+  resolveOptions?: (options: PackOption[]) => Record<string, boolean>   // wins over enabledOptions
   enabledOptions?: Record<string, boolean>   // optional-mod choices keyed by metafile path; default = option.default
+  signal?: AbortSignal
   log?: (line: string) => void
 }
 /** packwiz 1.1.0 consumer. pack.toml -> check pack-format starts with 'packwiz:' and major 1 ->
@@ -135,21 +137,40 @@ export interface SyncOptions {
  *  clear error for metadata:curseforge) to <instance>/<dir of .pw.toml>/<filename>; plain entries:
  *  download baseUrl + file to <instance>/<file>; honor preserve (skip if exists); verify every file
  *  with the listed hash-format (sha1/sha256/sha512/md5); delete files that were in the previous
- *  state but vanished from the index; persist state to <paths.state>/sync-<instanceId>.json
- *  { packHash, indexHash, files: { [relPath]: { hash, hashFormat, optional, preserved } } }.
- *  Short-circuit: when the sha256 of the fetched pack.toml equals state.packHash and index.hash equals
- *  state.indexHash, verify only presence of files and return unchanged=true. Fetch pack.toml with
- *  cache: 'no-store'. Concurrency 6. */
-export function syncPack(o: SyncOptions): Promise<SyncResult>
+ *  state but vanished from the plan (left the pack or turned off); persist state to
+ *  <paths.state>/sync-<instanceId>.json { packHash, indexHash, options, optionList, skipped,
+ *  files: { [relPath]: { hash, hashFormat, optional, preserved, source } } }.
+ *  Optional entries: [option] optional/default/description of every metafile of this side make
+ *  the option list (PackOption[], index order). The resolver runs on that list (fresh on a full
+ *  pass, from state.optionList on the short-circuit path) and its record is what planFiles reads
+ *  and what the state stores as `options`.
+ *  Short-circuit: when the sha256 of the fetched pack.toml equals state.packHash, index.hash equals
+ *  state.indexHash and resolveOptions(state.optionList) equals state.options, verify only presence
+ *  of files and return unchanged=true. A state without optionList (written before 0.3.0) never
+ *  short-circuits. Fetch pack.toml with cache: 'no-store'. Concurrency 6. */
+export function syncPack(o: SyncOptions): Promise<SyncResult>       // SyncResult.options = the option list
+/** The option list for the UI: state.optionList when a state exists (no network), else pack.toml +
+ *  index + every metafile. Never writes anything. */
+export function readPackOptions(paths: LauncherPaths, instanceId: string, baseUrl: string, side: 'client' | 'server', opts?: { signal?: AbortSignal; log?: (l: string) => void }): Promise<PackOption[]>
 export function readPackVersions(baseUrl: string): Promise<{ minecraft: string; neoforge: string }>
+/** launcher.json: schemaVersion 1, minLauncherVersion, server, motd, news, plus the optional
+ *  lowPresetDisables (string[]) and optionRequires (record) fields, empty when absent or malformed. */
 export function readLauncherJson(baseUrl: string): Promise<LauncherJson>
 ```
 
 ### `settings.ts`
 ```ts
-export function loadSettings(paths: LauncherPaths): Promise<Settings>      // default { preset: 'default' }
-export function saveSettings(paths: LauncherPaths, s: Settings): Promise<void>
+export function loadSettings(paths: LauncherPaths, opts?: { log? }): Promise<Settings>   // default { preset: 'default' }
+export function saveSettings(paths: LauncherPaths, s: Settings): Promise<void>            // writes normalizeSettings(s)
 export function presetFor(settings: Settings, totalMemoryBytes: number): LaunchPreset
+/** Keeps preset, maxMemoryMb (clamped 2048..12288) and options ("<path>.pw.toml": boolean pairs only). */
+export function normalizeSettings(raw: unknown): Settings
+/** Re-exported from src/shared/options.ts (pure, no Node, also used by the renderer): every optional
+ *  entry with its effective value = stored choice, else PackOption.default; then the low preset holds
+ *  rules.lowPresetDisables off and rules.optionRequires holds an entry off while its requirement is off
+ *  (chains followed to a fixed point). One log line per rule key absent from the option list. */
+export function effectiveOptions(settings: Settings, packOptions: PackOption[], rules: OptionRules, log?): Record<string, boolean>
+export function resolveOptions(settings: Settings, packOptions: PackOption[], rules: OptionRules, log?): ResolvedOption[]   // + lock reason per entry, for the UI
 ```
 
 ### `auth.ts`
@@ -181,7 +202,8 @@ export class AuthError extends Error { code: 'not-approved' | 'no-xbox-profile' 
 ## Smoke scripts (in `scripts/`, run with `npx tsx`)
 
 - `smoke-install.ts <root>`: ensureJava -> ensureVanilla('1.21.1') -> ensureNeoForge('1.21.1','21.1.250') twice; the second pass must complete in < 3 s and log "cached". Prints `OK: neoforge-21.1.250 ready`.
-- `smoke-pack.ts <root>`: syncPack from `https://raw.githubusercontent.com/underfr/consortium-pack/main/` into instance `consortium`, twice; second pass unchanged=true; then simulate a removed file by editing the state and check it is re-downloaded. Prints `OK: <n> files`.
+- `smoke-pack.ts <root>`: syncPack from `PACK_BASE_URL` into instance `consortium`, twice; second pass unchanged=true; then simulate a removed file by editing the state and check it is re-downloaded; a state without option list forces a full pass; runs 7 to 9 enable Iris through `effectiveOptions` (one jar downloaded, its name taken from the state entry whose `source` is the Iris metafile), force it off with the low preset rule (one jar removed) and short-circuit on the cached option list. Prints `OK: <n> files`.
+- `smoke-settings.ts`: `normalizeSettings` and the optional-mod rule (`effectiveOptions` / `resolveOptions`): defaults, choices, low preset, requirement chains and cycles, warnings for rule keys the pack does not have. No network. Prints `OK: settings helpers`.
 - `smoke-launch.ts <root>`: after smoke-install and smoke-pack, launchGame with demo=true, a placeholder profile and token, waits until <paths.logs>/game-latest.log contains "Loading" from NeoForge or 60 s elapse, then kills the process. Prints `OK: game started (NeoForge <v>, <n> mods)` when the game log mentions the loader and the mod count.
 - `smoke-auth.ts`: unit-tests the PKCE helpers (verifier/challenge S256 against a known vector) and the loopback server (start, GET /?code=x&state=y, receives the code, closes), with a fake token endpoint via the injected `fetch`. Prints `OK: auth helpers`.
 
@@ -211,3 +233,26 @@ Deviations from the API text above that were accepted during implementation and 
 - `auth.ts`: `new AuthError(message, code, { cause? })`. `@xmcl/user` also calls
   `device.auth.xboxlive.com` and a second XSTS authorize for `http://xboxlive.com` (source of the xuid).
 - Electron glue (auto-update, token store) lives in `src/main/electron/`, not in core.
+
+## Implementation notes (2026-09-16, launcher 0.3.0: optional mods)
+
+- `src/shared/types.ts` gained `PackSide`, `PackOption { file, name, description?, default, side }`,
+  `OptionRules { lowPresetDisables, optionRequires }` (which `LauncherJson` extends, both always
+  present and empty when the file has none), `SyncResult.options: PackOption[]` and
+  `Settings.options?: Record<string, boolean>` (choices keyed by metafile path).
+- `src/shared/options.ts` is a second shared module (pure, no Node or Electron import): the
+  optional-mod rule must be identical in the Play handler, the smoke tests and the renderer's
+  checkbox card, so it lives where both tsconfigs compile it. `settings.ts` re-exports it.
+- `pack.ts`: `parseMetafile` reads `[option].description`; `SyncOptions.resolveOptions` is the
+  preferred input (`enabledOptions` stays as the trivial resolver); the state file stores
+  `optionList` next to `options`; `readPackOptions` serves the UI from that cache.
+- `launcher.json` (pack repo) gained two optional fields read by `readLauncherJson` and ignored by
+  older launchers: `lowPresetDisables: ["mods/iris.pw.toml"]` and
+  `optionRequires: { "shaderpacks/<pack>.pw.toml": "mods/iris.pw.toml" }`. The rule is data on
+  purpose: a renamed metafile makes `effectiveOptions` log the drift instead of silently dropping
+  the rule.
+- `ipc.ts` loads settings and `launcher.json` before `syncPack` and passes
+  `resolveOptions: (list) => effectiveOptions(settings, list, launcherJson, log)`; new handler
+  `pack:options` (preload `getPackOptions()`) returns `[]` on failure. `config.ts` and `paths.ts`
+  are untouched.
+- The first Play after the upgrade does one full pass: the previous state has no `optionList`.

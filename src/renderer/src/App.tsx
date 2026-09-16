@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { AccountSummary, LauncherJson, Phase, ProgressEvent, Settings, UpdateStatus } from '../../shared/types'
+import { resolveOptions } from '../../shared/options'
+import type { AccountSummary, LauncherJson, OptionRules, PackOption, Phase, ProgressEvent, Settings, UpdateStatus } from '../../shared/types'
 
 type GameState = 'idle' | 'preparing' | 'running'
 
@@ -10,6 +11,8 @@ const PHASE_LABEL: Record<Phase, string> = {
   pack: 'Mods',
   launch: 'Launch',
 }
+
+const NO_RULES: OptionRules = { lowPresetDisables: [], optionRequires: {} }
 
 function formatBytes(n: number): string {
   if (n >= 1024 * 1024 * 1024) return (n / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
@@ -61,16 +64,66 @@ function Progress({ event }: { event: ProgressEvent | null }): React.JSX.Element
   )
 }
 
+interface OptionalModsProps {
+  options: PackOption[]
+  settings: Settings
+  rules: OptionRules
+  busy: boolean
+  onToggle: (file: string, enabled: boolean) => void
+}
+
+/**
+ * One checkbox per optional entry of the pack. The same rule as the Play handler (resolveOptions)
+ * decides what is checked and what is held off, so the card never promises a file the sync skips.
+ */
+function OptionalMods({ options, settings, rules, busy, onToggle }: OptionalModsProps): React.JSX.Element {
+  const resolved = new Map(resolveOptions(settings, options, rules, () => undefined).map((r) => [r.file, r]))
+  const nameOf = (file: string): string => options.find((o) => o.file === file)?.name ?? file
+  return (
+    <section className="options">
+      <h2>Optional mods</h2>
+      {options.length === 0 ? (
+        <p className="muted">Optional mods appear after the first launch.</p>
+      ) : (
+        <ul className="option-list">
+          {options.map((option) => {
+            const state = resolved.get(option.file)
+            const enabled = state?.enabled ?? option.default
+            const lock = state?.lock
+            const note = lock?.reason === 'low-preset' ? 'Forced off by the low RAM preset' : lock?.reason === 'requires' ? `Needs ${nameOf(lock.file)}` : null
+            return (
+              <li key={option.file} className={'option' + (lock ? ' option-locked' : '')}>
+                <label className="toggle option-toggle">
+                  <input type="checkbox" checked={enabled} disabled={busy || lock !== undefined} onChange={(e) => onToggle(option.file, e.target.checked)} />
+                  <span className="option-name">{option.name}</span>
+                </label>
+                {option.description && <p className="muted option-text">{option.description}</p>}
+                {note && <p className="muted option-note">{note}</p>}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      <p className="muted option-footer">Changes apply at the next Play.</p>
+    </section>
+  )
+}
+
 export default function App(): React.JSX.Element {
   const [version, setVersion] = useState('...')
   const [update, setUpdate] = useState<UpdateStatus>({ state: 'idle' })
   const [account, setAccount] = useState<AccountSummary | null>(null)
   const [signingIn, setSigningIn] = useState(false)
   const [settings, setSettings] = useState<Settings>({ preset: 'default' })
+  const [options, setOptions] = useState<PackOption[]>([])
   const [info, setInfo] = useState<LauncherJson | null>(null)
   const [gameState, setGameState] = useState<GameState>('idle')
   const [progress, setProgress] = useState<ProgressEvent | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const loadOptions = useCallback(() => {
+    window.api.getPackOptions().then(setOptions).catch(() => setOptions([]))
+  }, [])
 
   useEffect(() => {
     window.api.getInfo().then((i) => setVersion(i.version)).catch(() => setVersion('?'))
@@ -79,12 +132,15 @@ export default function App(): React.JSX.Element {
     window.api.getLauncherJson().then(setInfo).catch(() => setInfo(null))
     window.api.getGameState().then(setGameState).catch(() => undefined)
     window.api.signInSilent().then(setAccount).catch(() => setAccount(null))
+    loadOptions()
     const subs = [
       window.api.onUpdateStatus(setUpdate),
       window.api.onAccount(setAccount),
       window.api.onGameState((s) => {
         setGameState(s)
         if (s === 'idle') setProgress(null)
+        // A sync just ran (running) or the game closed (idle): the cached option list may be newer.
+        if (s !== 'preparing') loadOptions()
       }),
       window.api.onProgress(setProgress),
       window.api.onGameExit((code) => {
@@ -92,7 +148,7 @@ export default function App(): React.JSX.Element {
       }),
     ]
     return () => subs.forEach((u) => u())
-  }, [])
+  }, [loadOptions])
 
   const signIn = useCallback(async () => {
     setError(null)
@@ -129,7 +185,17 @@ export default function App(): React.JSX.Element {
     [settings],
   )
 
+  const toggleOption = useCallback(
+    async (file: string, enabled: boolean) => {
+      const next: Settings = { ...settings, options: { ...settings.options, [file]: enabled } }
+      setSettings(next)
+      await window.api.setSettings(next)
+    },
+    [settings],
+  )
+
   const busy = gameState !== 'idle'
+  const rules: OptionRules = info ?? NO_RULES
 
   return (
     <div className="shell">
@@ -172,6 +238,7 @@ export default function App(): React.JSX.Element {
             <input type="checkbox" checked={settings.preset === 'low'} disabled={busy} onChange={(e) => void toggleLow(e.target.checked)} />
             Low RAM / low graphics (8 GB machines)
           </label>
+          <OptionalMods options={options} settings={settings} rules={rules} busy={busy} onToggle={(file, enabled) => void toggleOption(file, enabled)} />
           <button className="play" onClick={() => void play()} disabled={!account || busy}>
             {gameState === 'running' ? 'Running' : gameState === 'preparing' ? 'Preparing...' : 'Play'}
           </button>

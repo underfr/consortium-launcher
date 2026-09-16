@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import type { AccountSummary, LauncherJson, ProgressEvent, Settings, UpdateStatus } from '../shared/types'
+import type { AccountSummary, LauncherJson, PackOption, ProgressEvent, Settings, UpdateStatus } from '../shared/types'
 
 type Unsubscribe = () => void
 
@@ -28,6 +28,8 @@ const api = {
   setSettings: (s: Settings): Promise<void> => ipcRenderer.invoke('settings:set', s),
 
   getLauncherJson: (): Promise<LauncherJson> => ipcRenderer.invoke('pack:launcherJson'),
+  /** Optional entries of the pack (cached list, or a fetch before the first sync); [] when unavailable. */
+  getPackOptions: (): Promise<PackOption[]> => ipcRenderer.invoke('pack:options'),
 
   play: (): Promise<void> => ipcRenderer.invoke('game:play'),
   getGameState: (): Promise<'idle' | 'preparing' | 'running'> => ipcRenderer.invoke('game:state'),

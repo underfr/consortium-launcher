@@ -7,7 +7,7 @@ import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, posix } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { parse as parseToml, TomlError, type TomlTableWithoutBigInt, type TomlValueWithoutBigInt } from 'smol-toml'
-import type { LauncherJson, PackInfo, ProgressReporter, SyncResult } from '../../shared/types'
+import type { LauncherJson, OptionRules, PackInfo, PackOption, PackSide, ProgressReporter, SyncResult } from '../../shared/types'
 import type { LauncherPaths } from './paths'
 import { ensureFile, fetchBytes, fetchJson, hashBytes, runWithConcurrency, type HashAlgorithm } from './download'
 
@@ -18,7 +18,13 @@ export interface SyncOptions {
   baseUrl: string
   side: 'client' | 'server'
   report: ProgressReporter
-  /** Optional-mod choices keyed by metafile path (e.g. "mods/foo.pw.toml"); default = option.default. */
+  /**
+   * Decides which optional entries to install, given the pack's option list (fresh from the
+   * metafiles on a full pass, from the state cache on the short-circuit path). Return a record
+   * keyed by metafile path; a missing key means option.default. Wins over enabledOptions.
+   */
+  resolveOptions?: (options: PackOption[]) => Record<string, boolean>
+  /** Precomputed choices keyed by metafile path (e.g. "mods/foo.pw.toml"); the trivial resolver. */
   enabledOptions?: Record<string, boolean>
   signal?: AbortSignal
   log?: (line: string) => void
@@ -60,9 +66,9 @@ interface IndexEntry {
 interface Metafile {
   name: string
   filename: string
-  side: 'both' | 'client' | 'server'
+  side: PackSide
   download: { url: string; hashFormat: HashAlgorithm; hash: string }
-  option?: { optional: boolean; default: boolean }
+  option?: { optional: boolean; default: boolean; description?: string }
 }
 
 /** One file the instance must contain after the sync. */
@@ -94,10 +100,18 @@ interface StateFile {
   indexHash: string
   /** enabledOptions used for this sync, so toggling an optional mod invalidates the short-circuit. */
   options: Record<string, boolean>
+  /**
+   * Optional entries of this side seen in the last full pass. Exact for indexHash: any edit to a
+   * metafile's [option] block changes that metafile's hash in index.toml and therefore the index hash.
+   */
+  optionList: PackOption[]
   /** Index entries skipped for this side or disabled, so the short-circuit can prove the state is complete. */
   skipped: string[]
   files: Record<string, StateFileEntry>
 }
+
+/** A state written by a launcher before 0.3.0 has no option list: it still drives delete-on-vanish, never the short-circuit. */
+type PreviousState = Omit<StateFile, 'optionList'> & { optionList: PackOption[] | null }
 
 // ---------------------------------------------------------------------------
 // TOML helpers (smol-toml returns loosely typed tables; validate every field we rely on)
@@ -154,6 +168,10 @@ function hashFormatOf(value: string, what: string): HashAlgorithm {
   }
 }
 
+function isPackSide(value: string): value is PackSide {
+  return value === 'both' || value === 'client' || value === 'server'
+}
+
 function parsePackToml(text: string, url: string): PackToml {
   const what = `The pack description (${url})`
   const t = parseTomlText(text, what)
@@ -206,7 +224,7 @@ function parseMetafile(text: string, entryFile: string): Metafile {
   const t = parseTomlText(text, what)
   const name = optionalString(t, 'name', what) ?? posix.basename(entryFile, '.pw.toml')
   const side = optionalString(t, 'side', what) ?? 'both'
-  if (side !== 'both' && side !== 'client' && side !== 'server') {
+  if (!isPackSide(side)) {
     throw new PackError(`${what} has an unknown side "${side}" (expected both, client or server)`)
   }
   const download = tableOf(t['download'], `${what} [download] section`)
@@ -224,9 +242,11 @@ function parseMetafile(text: string, entryFile: string): Metafile {
       ? undefined
       : (() => {
           const o = tableOf(optionTable, `${what} [option] section`)
+          const description = optionalString(o, 'description', `${what} [option] section`)?.trim()
           return {
             optional: optionalBool(o, 'optional', `${what} [option] section`) ?? false,
             default: optionalBool(o, 'default', `${what} [option] section`) ?? false,
+            ...(description ? { description } : {}),
           }
         })()
   return {
@@ -350,6 +370,35 @@ async function fetchMetafile(
   }
 }
 
+/** Every metafile of the index, keyed by its path. */
+async function fetchMetafiles(remote: RemotePack, signal: AbortSignal | undefined, log: (line: string) => void): Promise<Map<string, Metafile>> {
+  const metaEntries = remote.entries.filter((e) => e.metafile)
+  const metaResults = await runWithConcurrency(
+    metaEntries.map((entry) => () => fetchMetafile(entry, remote.indexDirUrl, signal, log)),
+    CONCURRENCY,
+  )
+  return new Map(metaEntries.map((entry, i) => [entry.file, metaResults[i]]))
+}
+
+/** The optional entries this side can install, in index order (the order the UI lists them in). */
+function optionsOf(remote: RemotePack, metafiles: Map<string, Metafile>, side: 'client' | 'server'): PackOption[] {
+  const options: PackOption[] = []
+  for (const entry of remote.entries) {
+    if (!entry.metafile) continue
+    const meta = metafiles.get(entry.file)
+    if (!meta?.option?.optional) continue
+    if (meta.side !== 'both' && meta.side !== side) continue
+    options.push({
+      file: entry.file,
+      name: meta.name,
+      ...(meta.option.description ? { description: meta.option.description } : {}),
+      default: meta.option.default,
+      side: meta.side,
+    })
+  }
+  return options
+}
+
 // ---------------------------------------------------------------------------
 // State file
 // ---------------------------------------------------------------------------
@@ -362,8 +411,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function isPackOption(value: unknown): value is PackOption {
+  return (
+    isRecord(value) &&
+    typeof value['file'] === 'string' &&
+    typeof value['name'] === 'string' &&
+    typeof value['default'] === 'boolean' &&
+    typeof value['side'] === 'string' &&
+    isPackSide(value['side']) &&
+    (value['description'] === undefined || typeof value['description'] === 'string')
+  )
+}
+
 /** Returns null when there is no usable state (first run, or a damaged file: treated as a fresh sync). */
-async function loadState(path: string, log: (line: string) => void): Promise<StateFile | null> {
+async function loadState(path: string, log: (line: string) => void): Promise<PreviousState | null> {
   let text: string
   try {
     text = await readFile(path, 'utf8')
@@ -393,7 +454,20 @@ async function loadState(path: string, log: (line: string) => void): Promise<Sta
       for (const [key, value] of Object.entries(raw['options'])) if (typeof value === 'boolean') options[key] = value
     }
     const skipped = Array.isArray(raw['skipped']) ? raw['skipped'].filter((v): v is string => typeof v === 'string') : []
-    return { packHash: raw['packHash'], indexHash: raw['indexHash'], options, skipped, files }
+    // No list (state written by a launcher before 0.3.0) or a malformed one: the next sync does a full pass.
+    let optionList: PackOption[] | null = null
+    if (Array.isArray(raw['optionList']) && raw['optionList'].every(isPackOption)) {
+      optionList = raw['optionList'].map((o) => ({
+        file: o.file,
+        name: o.name,
+        ...(o.description ? { description: o.description } : {}),
+        default: o.default,
+        side: o.side,
+      }))
+    } else {
+      log(`sync state ${path} has no usable option list, the next sync reads every metafile`)
+    }
+    return { packHash: raw['packHash'], indexHash: raw['indexHash'], options, optionList, skipped, files }
   } catch (err) {
     log(`ignoring damaged sync state ${path}: ${err instanceof Error ? err.message : String(err)}`)
     return null
@@ -418,7 +492,7 @@ function sameOptions(a: Record<string, boolean>, b: Record<string, boolean>): bo
  * (every index entry is an installed file or a deliberate skip, every recorded file comes from
  * the index) and every recorded file is still on disk.
  */
-function stateCoversIndex(state: StateFile, remote: RemotePack, instanceDir: string): boolean {
+function stateCoversIndex(state: PreviousState, remote: RemotePack, instanceDir: string): boolean {
   const entries = new Set(remote.entries.map((e) => e.file))
   const sources = new Set(Object.values(state.files).map((f) => f.source))
   const skipped = new Set(state.skipped)
@@ -508,10 +582,16 @@ function planFiles(
  * Brings <instance> in line with the pack. Cheap when nothing changed: two small fetches, a hash
  * comparison and presence checks. Otherwise every file is verified by hash (and downloaded when
  * missing or different), files that left the pack are removed, and the state file is rewritten.
+ *
+ * Optional entries: the resolver runs on the option list of the pack (cached in the state on the
+ * short-circuit path, fresh from the metafiles on a full pass). A changed answer fails the
+ * short-circuit, so a newly disabled entry is skipped and its file removed by delete-on-vanish,
+ * and a newly enabled one is downloaded.
  */
 export async function syncPack(o: SyncOptions): Promise<SyncResult> {
   const log = o.log ?? console.log
-  const enabledOptions = o.enabledOptions ?? {}
+  const fixed = o.enabledOptions ?? {}
+  const resolve = o.resolveOptions ?? ((): Record<string, boolean> => fixed)
   const instanceDir = o.paths.instance(o.instanceId)
   const statePath = statePathFor(o.paths, o.instanceId)
 
@@ -522,27 +602,25 @@ export async function syncPack(o: SyncOptions): Promise<SyncResult> {
 
   if (
     previous &&
+    previous.optionList !== null &&
     previous.packHash === remote.packHash &&
     previous.indexHash === remote.indexHash &&
-    sameOptions(previous.options, enabledOptions)
+    sameOptions(previous.options, resolve(previous.optionList))
   ) {
     if (stateCoversIndex(previous, remote, instanceDir)) {
       const count = Object.keys(previous.files).length
       log(`pack unchanged (${count} files present)`)
       o.report({ phase: 'pack', message: 'Modpack is up to date', current: count, total: count, unit: 'files' })
-      return { pack: packInfo(remote, count), downloaded: 0, deleted: 0, skipped: count, unchanged: true }
+      return { pack: packInfo(remote, count), downloaded: 0, deleted: 0, skipped: count, unchanged: true, options: previous.optionList }
     }
     log('pack unchanged but some files are missing, verifying everything')
   }
 
   // Full pass: read every metafile, then verify or download every file.
   o.report({ phase: 'pack', message: 'Reading the modpack index' })
-  const metaEntries = remote.entries.filter((e) => e.metafile)
-  const metaResults = await runWithConcurrency(
-    metaEntries.map((entry) => () => fetchMetafile(entry, remote.indexDirUrl, o.signal, log)),
-    CONCURRENCY,
-  )
-  const metafiles = new Map(metaEntries.map((entry, i) => [entry.file, metaResults[i]]))
+  const metafiles = await fetchMetafiles(remote, o.signal, log)
+  const optionList = optionsOf(remote, metafiles, o.side)
+  const enabledOptions = resolve(optionList)
   const { planned, skipped: skippedEntries } = planFiles(remote, metafiles, o.side, enabledOptions, log)
 
   const total = planned.length
@@ -601,7 +679,7 @@ export async function syncPack(o: SyncOptions): Promise<SyncResult> {
       o.report({ phase: 'pack', message: `Removing ${posix.basename(safe)}`, current: done, total, unit: 'files' })
       await rm(target, { force: true })
       deleted++
-      log(`removed ${safe} (no longer in the pack)`)
+      log(`removed ${safe} (left the pack or turned off)`)
     }
   }
 
@@ -609,13 +687,34 @@ export async function syncPack(o: SyncOptions): Promise<SyncResult> {
     packHash: remote.packHash,
     indexHash: remote.indexHash,
     options: enabledOptions,
+    optionList,
     skipped: skippedEntries,
     files,
   })
 
   log(`pack synced: ${downloaded} downloaded, ${upToDate} up to date, ${deleted} removed, ${skippedEntries.length} entries skipped`)
   o.report({ phase: 'pack', message: 'Modpack is up to date', current: total, total, unit: 'files' })
-  return { pack: packInfo(remote, total), downloaded, deleted, skipped: upToDate, unchanged: false }
+  return { pack: packInfo(remote, total), downloaded, deleted, skipped: upToDate, unchanged: false, options: optionList }
+}
+
+/**
+ * The option list for the UI, before or between syncs: the list cached by the last full pass when
+ * a state exists (no network), else pack.toml + index + every metafile. Never touches the instance
+ * or the state; the next Play refreshes the cache.
+ */
+export async function readPackOptions(
+  paths: LauncherPaths,
+  instanceId: string,
+  baseUrl: string,
+  side: 'client' | 'server',
+  opts: { signal?: AbortSignal; log?: (line: string) => void } = {},
+): Promise<PackOption[]> {
+  const log = opts.log ?? console.log
+  const previous = await loadState(statePathFor(paths, instanceId), log)
+  if (previous?.optionList) return previous.optionList
+  const remote = await fetchRemotePack(baseUrl, opts.signal, log)
+  const metafiles = await fetchMetafiles(remote, opts.signal, log)
+  return optionsOf(remote, metafiles, side)
 }
 
 // ---------------------------------------------------------------------------
@@ -631,6 +730,18 @@ export async function readPackVersions(baseUrl: string): Promise<{ minecraft: st
 
 function isNewsItem(value: unknown): value is LauncherJson['news'][number] {
   return isRecord(value) && typeof value['date'] === 'string' && typeof value['title'] === 'string' && typeof value['text'] === 'string'
+}
+
+/** The optional-entry rules of launcher.json; both fields are optional in the file and ignored when malformed. */
+function parseOptionRules(raw: Record<string, unknown>): OptionRules {
+  const disables = raw['lowPresetDisables']
+  const lowPresetDisables = Array.isArray(disables) ? disables.filter((v): v is string => typeof v === 'string' && v !== '') : []
+  const optionRequires: Record<string, string> = {}
+  const requires = raw['optionRequires']
+  if (isRecord(requires)) {
+    for (const [file, required] of Object.entries(requires)) if (typeof required === 'string' && required !== '') optionRequires[file] = required
+  }
+  return { lowPresetDisables, optionRequires }
 }
 
 export async function readLauncherJson(baseUrl: string): Promise<LauncherJson> {
@@ -656,5 +767,6 @@ export async function readLauncherJson(baseUrl: string): Promise<LauncherJson> {
     server: { name: server['name'], address: server['address'] },
     motd: raw['motd'],
     news: news.filter(isNewsItem).map((n) => ({ date: n.date, title: n.title, text: n.text })),
+    ...parseOptionRules(raw),
   }
 }

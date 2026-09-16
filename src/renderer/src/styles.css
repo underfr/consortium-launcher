@@ -27,8 +27,18 @@ main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; paddin
 .motd { margin: 0 0 16px; font-size: 15px; }
 .news article { border-top: 1px solid #2a323d; padding: 10px 0; }
 .news article p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
-.play-area { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
+.play-area { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; min-height: 0; overflow-y: auto; }
 .toggle { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.options { width: 100%; max-width: 420px; background: var(--panel); border-radius: 8px; padding: 12px 16px; }
+.options h2 { margin: 0 0 8px; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.option-list { list-style: none; margin: 0; padding: 0; max-height: 200px; overflow-y: auto; }
+.option { padding: 6px 0; border-top: 1px solid #2a323d; }
+.option:first-child { border-top: 0; }
+.option-toggle { color: var(--text); font-size: 14px; }
+.option-locked .option-name { color: var(--muted); }
+.option-text, .option-note { margin: 2px 0 0 24px; font-size: 12px; }
+.option-note { color: var(--accent); }
+.option-footer { margin: 8px 0 0; font-size: 12px; }
 .play { font-size: 22px; padding: 16px 72px; border: 0; border-radius: 8px; background: var(--accent); color: #111; font-weight: 700; cursor: pointer; }
 .play:disabled { opacity: 0.4; cursor: not-allowed; }
 .muted { color: var(--muted); font-size: 13px; }

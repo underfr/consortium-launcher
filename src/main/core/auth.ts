@@ -12,12 +12,14 @@ import {
   MicrosoftMinecraftXboxLoginError,
   MojangClient,
   ProfileNotFoundError,
+  type MicrosoftMinecraftProfile,
   type MinecraftAuthResponse,
   type MojangClientOptions,
   type XBoxResponse,
 } from '@xmcl/user'
 import { version as LAUNCHER_VERSION } from '../../../package.json'
 import { MS_AUTHORITY, MS_SCOPE } from './config'
+import { activeSkin, type SkinRef } from './skin'
 
 // ---------------------------------------------------------------------------------------------
 // Public types (see docs/CORE_CONTRACT.md, section auth.ts)
@@ -44,6 +46,8 @@ export interface Session {
   expiresAt: number
   /** Xbox user id when the XSTS response carried it (passed to the game as --xuid). */
   xuid?: string
+  /** Active skin from the profile reply (https URL on textures.minecraft.net and its sha256); absent when the account has none. */
+  skin?: SkinRef
 }
 
 export interface AuthOptions {
@@ -583,7 +587,7 @@ async function sessionFromMsToken(fetchImpl: typeof fetch, msAccessToken: string
   }
 
   const mojang = new MojangClient({ fetch: asMojangFetch(fetchImpl) })
-  let profile: { id: string; name: string }
+  let profile: MicrosoftMinecraftProfile
   try {
     profile = await mojang.getProfile(mc.access_token, AbortSignal.timeout(REQUEST_TIMEOUT_MS))
   } catch (err) {
@@ -601,6 +605,9 @@ async function sessionFromMsToken(fetchImpl: typeof fetch, msAccessToken: string
   // The Minecraft relying party usually omits xid; the xboxlive.com one carries it.
   const xuid = nonEmpty(claims.xid) ?? nonEmpty(liveXsts?.DisplayClaims.xui[0]?.xid)
   if (xuid) session.xuid = xuid
+  // The skins array rides on the profile reply: no extra request for the head in the account chip.
+  const skin = activeSkin(Array.isArray(profile.skins) ? profile.skins : undefined, log)
+  if (skin) session.skin = skin
   return session
 }
 

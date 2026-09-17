@@ -16,7 +16,9 @@ header { display: flex; align-items: center; justify-content: space-between; pad
 header h1 { margin: 0; font-size: 22px; letter-spacing: 0.08em; text-transform: uppercase; }
 .version { color: var(--muted); font-size: 12px; }
 .account { display: flex; align-items: center; gap: 12px; }
-.chip { background: var(--panel-2); padding: 6px 12px; border-radius: 999px; font-weight: 600; }
+.chip { display: inline-flex; align-items: center; gap: 8px; background: var(--panel-2); padding: 4px 12px 4px 4px; border-radius: 999px; font-weight: 600; }
+/* 8x8 head texels scaled 4x without smoothing, like the game's own inventory paper doll. */
+.head { flex: none; width: 32px; height: 32px; border-radius: 4px; image-rendering: pixelated; }
 button { font: inherit; }
 .secondary { padding: 8px 16px; border: 1px solid var(--muted); border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; }
 .secondary:disabled { opacity: 0.5; cursor: wait; }

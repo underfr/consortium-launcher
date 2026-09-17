@@ -1,6 +1,6 @@
 {
   "name": "consortium-launcher",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Launcher for The Consortium modded server. NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.",
   "main": "./out/main/index.js",
   "author": "The Consortium",
@@ -21,6 +21,7 @@
   "dependencies": {
     "@xmcl/core": "2.15.1",
     "@xmcl/installer": "6.1.2",
+    "@xmcl/unzip": "2.1.2",
     "@xmcl/user": "4.4.2",
     "electron-log": "^5.4.0",
     "electron-updater": "6.8.9",

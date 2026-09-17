@@ -27,7 +27,7 @@ Rules that every module under `src/main/core/` follows.
 
 ## Pinned libraries (exact, never `latest`)
 
-`@xmcl/core@2.15.1`, `@xmcl/installer@6.1.2`, `@xmcl/user@4.4.2`, `smol-toml@1.8.0`. Verified
+`@xmcl/core@2.15.1`, `@xmcl/installer@6.1.2`, `@xmcl/user@4.4.2`, `@xmcl/unzip@2.1.2`, `smol-toml@1.8.0`. Verified
 API for 6.1.2 (Task based): `getVersionList()`, `installTask(meta, folder)`,
 `installNeoForgedTask('neoforge', version, folder, { java, inheritsFrom })`,
 `installJavaRuntimeTask({ destination, manifest: { target, version, files } })`,
@@ -177,7 +177,7 @@ export function resolveOptions(settings: Settings, packOptions: PackOption[], ru
 ```ts
 export interface StoredTokens { refreshToken: string; msClientId: string }
 export interface TokenStore { load(): Promise<StoredTokens | null>; save(t: StoredTokens): Promise<void>; clear(): Promise<void> }
-export interface Session { profile: { id: string; name: string }; accessToken: string; expiresAt: number; xuid?: string }
+export interface Session { profile: { id: string; name: string }; accessToken: string; expiresAt: number; xuid?: string; skin?: SkinRef }
 export interface AuthOptions {
   clientId: string
   store: TokenStore
@@ -198,6 +198,53 @@ export function loginSilent(o: AuthOptions): Promise<Session | null>   // from s
 export function logout(o: AuthOptions): Promise<void>
 export class AuthError extends Error { code: 'not-approved' | 'no-xbox-profile' | 'child-account' | 'no-java-profile' | 'not-owned' | 'cancelled' | 'network' | 'unknown' }
 ```
+`Session.skin` is `activeSkin(profile.skins)` from the same `/minecraft/profile` reply the sign-in
+already makes (no extra request): absent when the account has no ACTIVE skin.
+
+### `skin.ts`
+```ts
+export type SkinModel = 'wide' | 'slim'
+export interface SkinRef { url: string /* https, textures.minecraft.net */; model: SkinModel; hash: string /* sha256 from the URL path */ }
+export interface HeadResult { dataUrl: string /* data:image/png;base64 of the 8x8 head */; source: 'skin' | 'default-skin' | 'fallback' }
+/** First ACTIVE entry of the profile reply's skins[], http upgraded to https; null unless the URL is
+ *  textures.minecraft.net/texture/<64 hex>. The downloader's allow-list stays the last line of defence. */
+export function activeSkin(skins: { state?: string; url?: string; variant?: string }[] | undefined, log?): SkinRef | null
+/** <paths.state>/skins/<profileId>.png; throws SkinError unless profileId is 32 hex characters. */
+export function skinCachePath(paths: LauncherPaths, profileId: string): string
+export function isSkinCached(paths, profileId, skin: SkinRef): Promise<boolean>   // sha256 of the file equals skin.hash, no network
+/** ensureFile with hash sha256 = skin.hash: 'cached' costs one hash of a 1-4 KB file, a changed skin overwrites the same file. */
+export function ensureSkin(paths, profileId, skin: SkinRef, opts?: { signal?; log? }): Promise<{ file: string; result: 'cached' | 'downloaded' }>
+/** The 8x8 head the game shows: face texels (8..15, 8..15) made opaque, hat texels (40..47, 8..15) drawn over
+ *  it as a cutout (alpha < 0.1 skipped), the legacy 64x32 "solid hat region means no hat" rule applied;
+ *  throws SkinError for any size other than 64x64 and 64x32 (the game discards those too). */
+export function headFromSkin(skin: Rgba): Rgba
+export function headDataUrl(head: Rgba): string
+export function fallbackHead(): Rgba                 // project-drawn 8x8 face, no Mojang texture inside the launcher
+export function fallbackHeadDataUrl(): string
+export function javaUuidHashCode(id: string): number   // java.util.UUID.hashCode(), dashes optional
+export function defaultSkinFor(id: string): { name: DefaultSkinName; model: SkinModel }   // DefaultPlayerSkin.get(uuid), 1.21.1
+export function defaultSkinEntry(skin: DefaultSkin): string   // assets/minecraft/textures/entity/player/<model>/<name>.png
+export function readZipEntry(zipPath: string, entryName: string): Promise<Buffer>   // @xmcl/unzip, stops at the first match
+export function findClientJar(paths: LauncherPaths): Promise<string | null>   // newest <minecraft>/versions/<id>/<id>.jar, null before the first Play
+export function defaultSkinFromJar(jarPath: string, profileId: string): Promise<Rgba>
+/** Never throws. network=false: cached skin, else the default skin read from the player's own client jar,
+ *  else the bundled face. network=true also downloads a missing or outdated skin first. */
+export function headForProfile(paths, profileId, skin: SkinRef | undefined, opts: { network: boolean; signal?; log? }): Promise<HeadResult>
+export class SkinError extends Error {}
+```
+
+### `png.ts`
+```ts
+export interface Rgba { width: number; height: number; data: Uint8Array /* RGBA, row-major */ }
+/** Any standard still PNG: colour types 0/2/3/4/6, bit depths 1-16, Adam7, PLTE + tRNS; CRCs checked.
+ *  maxPixels (default 16384 x 16384) is checked on the IHDR before any allocation; the IDAT stream is inflated
+ *  with the exact byte bound the header implies (a deflate bomb is refused). skin.ts passes SKIN_MAX_PIXELS = 64 x 64. */
+export function decodePng(bytes: Uint8Array, options?: { maxPixels?: number }): Rgba   // throws PngError
+export function encodePng(image: Rgba): Buffer               // RGBA8, non-interlaced, filter 0
+export function pngDataUrl(png: Uint8Array): string
+export function isPng(bytes: Uint8Array): boolean
+export class PngError extends Error {}
+```
 
 ## Smoke scripts (in `scripts/`, run with `npx tsx`)
 
@@ -205,7 +252,8 @@ export class AuthError extends Error { code: 'not-approved' | 'no-xbox-profile' 
 - `smoke-pack.ts <root>`: syncPack from `PACK_BASE_URL` into instance `consortium`, twice; second pass unchanged=true; then simulate a removed file by editing the state and check it is re-downloaded; a state without option list forces a full pass; runs 7 to 9 enable Iris through `effectiveOptions` (one jar downloaded, its name taken from the state entry whose `source` is the Iris metafile), force it off with the low preset rule (one jar removed) and short-circuit on the cached option list. Prints `OK: <n> files`.
 - `smoke-settings.ts`: `normalizeSettings` and the optional-mod rule (`effectiveOptions` / `resolveOptions`): defaults, choices, low preset, requirement chains and cycles, warnings for rule keys the pack does not have. No network. Prints `OK: settings helpers`.
 - `smoke-launch.ts <root>`: after smoke-install and smoke-pack, launchGame with demo=true, a placeholder profile and token, waits until <paths.logs>/game-latest.log contains "Loading" from NeoForge or 60 s elapse, then kills the process. Prints `OK: game started (NeoForge <v>, <n> mods)` when the game log mentions the loader and the mod count.
-- `smoke-auth.ts`: unit-tests the PKCE helpers (verifier/challenge S256 against a known vector) and the loopback server (start, GET /?code=x&state=y, receives the code, closes), with a fake token endpoint via the injected `fetch`. Prints `OK: auth helpers`.
+- `smoke-auth.ts`: unit-tests the PKCE helpers (verifier/challenge S256 against a known vector) and the loopback server (start, GET /?code=x&state=y, receives the code, closes), with a fake token endpoint via the injected `fetch`; the stubbed profile reply carries an http CLASSIC skin and the session must expose it as an https `SkinRef` (and none for `skins: []`). Prints `OK: auth helpers`.
+- `smoke-head.ts <root>`: `javaUuidHashCode` / `defaultSkinFor` against vectors from the Java 21 runtime, `activeSkin` parsing, the PNG codec round trip, then the Steve skin read from `<root>/minecraft/versions/<id>/<id>.jar` (palette PNG) cropped like the game (hat cutout threshold, opaque face, legacy 64x32 hat rule, sizes discarded), the decoder guards (a 16384x16384 IHDR refused by `maxPixels` before the IDAT is read, a deflate bomb refused by the inflate bound), the cache path in a temporary root (cached, stale sha256, undecodable file, no jar at all), the allow-list (foreign host and plain http rejected with reason `policy`) and one real download of a legacy texture from `textures.minecraft.net`. Prints `OK: head helpers`.
 
 ## Implementation notes (2026-09-14, after review)
 
@@ -256,3 +304,32 @@ Deviations from the API text above that were accepted during implementation and 
   `pack:options` (preload `getPackOptions()`) returns `[]` on failure. `config.ts` and `paths.ts`
   are untouched.
 - The first Play after the upgrade does one full pass: the previous state has no `optionList`.
+
+## Implementation notes (2026-09-17, launcher 0.3.1: player head in the account chip)
+
+- `src/shared/types.ts`: `AccountSummary` gained `headDataUrl: string` (always present). `config.ts`
+  gained `textures.minecraft.net` in `ALLOWED_DOWNLOAD_HOSTS`; `paths.ts` only documents
+  `state/skins/<profileId>.png`, no new `LauncherPaths` field.
+- `auth.ts` widens the profile reply to `MicrosoftMinecraftProfile` and stores `activeSkin(profile.skins)`
+  as `Session.skin`. The reply's URLs are plain http; `activeSkin` upgrades them to https because
+  `download.ts` refuses anything else. Zero extra calls to `api.minecraftservices.com`.
+- `ipc.ts` keeps one `head` next to the session. After every sign-in (silent, interactive, the token
+  refresh inside `game:play`) it awaits `headForProfile(network: false)` (disk only: a cached skin
+  costs a few milliseconds, the default skin read from the 26 MB client jar about 150 ms, else the
+  bundled face) so the sign-in result already carries a head, then runs `headForProfile(network: true)` detached with
+  `AbortSignal.timeout(15000)` and pushes `auth:account` again only when the head changed. A slow or
+  down CDN therefore never delays the sign-in, and the renderer needs no new channel. On a token
+  refresh the head already shown is kept until the fresh one is ready (no flicker to the default).
+- At most one GET to `textures.minecraft.net` per sign-in, and none when the cached file's sha256
+  still matches the URL (the CDN advertises `max-age=604800`).
+- Cropping happens in the main process (`png.ts` + `skin.ts`, pure Node, exercised by the smoke
+  script) and the renderer only shows the 8x8 PNG at 32 px with `image-rendering: pixelated`
+  (`src/renderer/src/PlayerHead.tsx`, `.head` in `styles.css`). The CSP already allows `img-src data:`.
+- No Mojang texture ships inside the launcher (README, "Game files and mods" and "Branding"): the
+  bundled fallback is a project-drawn 8x8 face (`FALLBACK_FACE` in `skin.ts`). The game-accurate
+  default (`DefaultPlayerSkin.get(uuid)`: `floorMod(UUID.hashCode(), 18)`, slim alex..zuri then wide
+  alex..zuri) is read at runtime from the client jar the player already downloaded, so it only
+  applies after the first Play.
+- `@xmcl/unzip@2.1.2` (already a transitive dependency of `@xmcl/core`) became a direct exact-pinned
+  dependency for `readZipEntry`; `walkEntries` is used instead of `filterEntries`, which walks the
+  whole jar even after a match.

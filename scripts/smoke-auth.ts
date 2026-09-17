@@ -62,7 +62,12 @@ interface StubBehaviour {
   loginWithXbox?: 'ok' | 'not-approved'
   profile?: 'ok' | 'not-found'
   entitlements?: 'owned' | 'empty'
+  /** What the profile reply lists under skins: an active CLASSIC skin (default), nothing, or an inactive one only. */
+  skins?: 'active' | 'none' | 'inactive'
 }
+
+/** Legacy 64x32 texture that really exists on the CDN; the path segment is the file's sha256. */
+const SKIN_HASH = '292009a4925b58f02c77dadc3ecef07ea4c7472f64e0fdc32ce5522489362680'
 
 interface Stub {
   fetch: typeof fetch
@@ -183,20 +188,20 @@ function makeStub(b: StubBehaviour = {}): Stub {
           developerMessage: 'The server has not found anything matching the request URI',
         })
       }
-      return json(200, {
-        id: PROFILE_ID,
-        name: 'Notch',
-        skins: [
-          {
-            id: '6a6e65e0-dcaa-4f5d-ab2b-3e2d3b7a2e6b',
-            state: 'ACTIVE',
-            url: 'http://textures.minecraft.net/texture/292009a4925b58f02c77dadc3ecef07ea4c7472f64e0fdc32ce5522489362680',
-            variant: 'CLASSIC',
-            alias: 'STEVE',
-          },
-        ],
-        capes: [],
-      })
+      // The real reply carries plain http URLs; auth.ts upgrades the scheme before the downloader sees it.
+      const skins =
+        b.skins === 'none'
+          ? []
+          : [
+              {
+                id: '6a6e65e0-dcaa-4f5d-ab2b-3e2d3b7a2e6b',
+                state: b.skins === 'inactive' ? 'INACTIVE' : 'ACTIVE',
+                url: `http://textures.minecraft.net/texture/${SKIN_HASH}`,
+                variant: 'CLASSIC',
+                alias: 'STEVE',
+              },
+            ]
+      return json(200, { id: PROFILE_ID, name: 'Notch', skins, capes: [] })
     }
     if (url === 'https://api.minecraftservices.com/entitlements/mcstore') {
       assert.equal(headers.get('authorization'), 'Bearer mc-access-token')
@@ -336,6 +341,8 @@ function assertSession(session: Session): void {
   assert.equal(session.xuid, XUID)
   const remaining = session.expiresAt - Date.now()
   assert.ok(remaining > 86_400_000 - 10_000 && remaining <= 86_400_000, `expiresAt should be about 24 h away, got ${remaining} ms`)
+  // The active skin rides on the profile reply: https URL, model from the variant, sha256 from the path.
+  assert.deepEqual(session.skin, { url: `https://textures.minecraft.net/texture/${SKIN_HASH}`, model: 'wide', hash: SKIN_HASH })
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -485,6 +492,15 @@ async function step3Interactive(): Promise<void> {
     assert.ok(stub.calls.includes(endpoint), `expected a call to ${endpoint}`)
   }
   log(`session for ${session.profile.name} (${session.profile.id}), xuid ${session.xuid ?? 'none'}, ${stub.calls.length} requests`)
+  assert.ok(!stub.calls.some((url) => url.includes('textures.minecraft.net')), 'sign-in itself never fetches the skin texture')
+
+  // An account without a skin, or with only inactive ones, signs in the same and carries no SkinRef.
+  const skinless = await loginInteractive(options(makeStub({ skins: 'none' }), new MemoryStore(), fakeBrowser({})))
+  assert.equal(skinless.profile.name, 'Notch')
+  assert.equal(skinless.skin, undefined)
+  const inactive = await loginInteractive(options(makeStub({ skins: 'inactive' }), new MemoryStore(), fakeBrowser({})))
+  assert.equal(inactive.skin, undefined)
+  log('skins: [] and an INACTIVE-only list both give a session without a skin')
 }
 
 async function step4NotApproved(): Promise<void> {

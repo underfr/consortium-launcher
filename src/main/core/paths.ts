@@ -6,7 +6,7 @@ import { join } from 'node:path'
  *   <root>/runtime/java21/            Mojang java-runtime-delta (bin/java.exe or bin/java)
  *   <root>/minecraft/                 shared vanilla + NeoForge files: versions/ libraries/ assets/
  *   <root>/instances/<id>/            game directory: mods/ config/ kubejs/ saves/ options.txt logs/
- *   <root>/state/                     settings.json, sync-<id>.json, auth.bin
+ *   <root>/state/                     settings.json, sync-<id>.json, auth.bin, skins/<profileId>.png
  *   <root>/logs/                      launcher and game logs
  */
 export interface LauncherPaths {

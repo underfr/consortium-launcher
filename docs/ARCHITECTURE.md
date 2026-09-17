@@ -47,7 +47,7 @@ The Minecraft services API rejects every new Azure app until Mojang manually all
 
 ```
 consortium-launcher/           (Electron app, MIT, GitHub Releases = update channel)
-  src/main/       core/{download,java,vanilla,neoforge,launch,auth,pack,settings,update}.ts, ipc.ts, index.ts
+  src/main/       core/{download,java,vanilla,neoforge,launch,auth,pack,settings,skin,png,update}.ts, ipc.ts, index.ts
   src/preload/    typed bridge
   src/renderer/   React UI (single screen: account, Play, progress, preset toggle, news)
   electron-builder.yml, .github/workflows/release.yml
@@ -56,7 +56,7 @@ consortium-pack/               (packwiz pack, GitHub Pages = pack URL)
 ```
 
 On-disk layout on the player's machine (`%APPDATA%/consortium-launcher/`):
-`runtime/java21/`, `minecraft/{versions,libraries,assets}/` (shared, hash-verified), `instances/consortium/{mods,config,kubejs,saves,options.txt}`, `state/{sync-state.json,settings.json,auth.bin}`, `logs/`.
+`runtime/java21/`, `minecraft/{versions,libraries,assets}/` (shared, hash-verified), `instances/consortium/{mods,config,kubejs,saves,options.txt}`, `state/{sync-state.json,settings.json,auth.bin,skins/<profileId>.png}`, `logs/`.
 
 ## 5. Milestone 1 - "boots NeoForge 1.21.1 with 2 test mods from the remote manifest, and picks up a manifest change on next launch"
 

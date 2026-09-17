@@ -97,6 +97,13 @@ export interface AccountSummary {
   /** Minecraft profile UUID without dashes. */
   id: string
   name: string
+  /**
+   * The player's 8x8 head (face with the hat layer on top) as a data:image/png;base64 URL, to be
+   * shown pixelated at 32 px. Always present: the game's default skin for this UUID or the bundled
+   * fallback face stands in until the skin is downloaded, and a second auth:account push carries
+   * the real one once it is.
+   */
+  headDataUrl: string
 }
 
 export interface Settings {

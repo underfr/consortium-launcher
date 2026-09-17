@@ -10,6 +10,7 @@ import { ensureNeoForge } from './core/neoforge'
 import { readLauncherJson, readPackOptions, readPackVersions, syncPack } from './core/pack'
 import type { LauncherPaths } from './core/paths'
 import { effectiveOptions, loadSettings, presetFor, saveSettings } from './core/settings'
+import { fallbackHeadDataUrl, headForProfile } from './core/skin'
 import { ensureVanilla } from './core/vanilla'
 import { createTokenStore } from './electron/token-store'
 
@@ -33,8 +34,17 @@ export function registerIpc(win: BrowserWindow, paths: LauncherPaths): void {
 
   let session: Session | null = null
   let state: GameState = 'idle'
+  /** Head of the signed-in profile as a data URL; the bundled face stands in until skin.ts has answered. */
+  let head: { profileId: string; dataUrl: string } | null = null
 
-  const summary = (s: Session | null): AccountSummary | null => (s ? { id: s.profile.id, name: s.profile.name } : null)
+  const summary = (s: Session | null): AccountSummary | null =>
+    s
+      ? {
+          id: s.profile.id,
+          name: s.profile.name,
+          headDataUrl: head?.profileId === s.profile.id ? head.dataUrl : fallbackHeadDataUrl(),
+        }
+      : null
   const setState = (next: GameState): void => {
     state = next
     send('game:state', state)
@@ -43,6 +53,36 @@ export function registerIpc(win: BrowserWindow, paths: LauncherPaths): void {
     if (err instanceof AuthError) return err.message
     if (err instanceof Error) return err.message
     return String(err)
+  }
+
+  /**
+   * Resolves the head from the disk first (cached skin: a few milliseconds; default skin read from
+   * the client jar: about 150 ms; else the bundled face) so the sign-in result already carries it,
+   * then downloads a missing or outdated skin detached from the caller and pushes the account
+   * again once the head changed. A slow CDN therefore never delays the sign-in.
+   */
+  const loadHead = async (s: Session): Promise<void> => {
+    const id = s.profile.id
+    let local: Awaited<ReturnType<typeof headForProfile>>
+    try {
+      local = await headForProfile(paths, id, s.skin, { network: false, log: coreLog })
+    } catch (err) {
+      // headForProfile never throws by contract; a bug there must still not fail a successful sign-in.
+      log.warn('skin: could not resolve the head, keeping the fallback face: ' + describe(err))
+      return
+    }
+    if (session?.profile.id !== id) return
+    // A token refresh keeps the head already shown for this profile rather than dropping to the default.
+    if (local.source === 'skin' || head?.profileId !== id) head = { profileId: id, dataUrl: local.dataUrl }
+    if (local.source === 'skin' || !s.skin) return
+    const skin = s.skin
+    void headForProfile(paths, id, skin, { network: true, signal: AbortSignal.timeout(15_000), log: coreLog })
+      .then((remote) => {
+        if (session?.profile.id !== id || remote.dataUrl === head?.dataUrl) return
+        head = { profileId: id, dataUrl: remote.dataUrl }
+        send('auth:account', summary(session))
+      })
+      .catch((err: unknown) => log.warn('skin: head update failed: ' + describe(err)))
   }
 
   ipcMain.handle('app:info', () => ({
@@ -58,16 +98,19 @@ export function registerIpc(win: BrowserWindow, paths: LauncherPaths): void {
       log.warn('silent sign-in failed: ' + describe(err))
       session = null
     }
+    if (session) await loadHead(session)
     return summary(session)
   })
 
   ipcMain.handle('auth:login', async (): Promise<AccountSummary> => {
     session = await loginInteractive(authOptions)
+    await loadHead(session)
     return summary(session) as AccountSummary
   })
 
   ipcMain.handle('auth:logout', async (): Promise<void> => {
     session = null
+    head = null
     await logout(authOptions)
   })
 
@@ -100,6 +143,7 @@ export function registerIpc(win: BrowserWindow, paths: LauncherPaths): void {
         const refreshed = await loginSilent(authOptions)
         if (!refreshed) throw new AuthError('Your session expired. Sign in again.', 'unknown')
         session = refreshed
+        await loadHead(session)
         send('auth:account', summary(session))
       }
 

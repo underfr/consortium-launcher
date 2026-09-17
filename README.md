@@ -40,6 +40,7 @@ table shows what is actually implemented on `main` today.
 | Game launch | implemented; NeoForge 21.1.250 boots with the test mods | `src/main/core/launch.ts` |
 | Low RAM / low graphics preset | implemented | `src/main/core/settings.ts` |
 | Optional mods (pack `[option]` entries, settings, low preset rule from launcher.json) | implemented, smoke-tested (`scripts/smoke-pack.ts` runs 7 to 9, `scripts/smoke-settings.ts`) | `src/main/core/pack.ts`, `src/shared/options.ts`, `src/renderer/src/App.tsx` |
+| Player head next to the signed-in name (skin from the profile reply, cached by sha256, cropped like the game, default skin from the player's own client jar or a project-drawn fallback face) | implemented, smoke-tested (`scripts/smoke-head.ts`, including one real download from the skin CDN); visual check in the app waits for a real sign-in | `src/main/core/skin.ts`, `src/main/core/png.ts`, `src/renderer/src/PlayerHead.tsx` |
 | Code-signed release builds | planned | see "Updates and signing" |
 
 ## Microsoft application registration
@@ -88,6 +89,13 @@ fallback path.
   self-hosted authentication server, and never redirects or intercepts the game's session,
   services or auth hosts. Once started, the game authenticates against Mojang's session servers
   exactly as it does under any other launcher.
+- The launcher shows the player's own head (the face of their current skin) next to their name.
+  The skin URL comes from the same profile reply the sign-in already reads; the texture is
+  fetched from Mojang's skin CDN over HTTPS, verified against the SHA-256 in its URL and kept in
+  the launcher's local state folder. When the account has no skin, the launcher shows the same
+  default skin the game would pick for that account, read from the game files already
+  installed on the player's machine, and a small face drawn for this project before the first
+  launch. No Mojang texture is bundled with the launcher.
 
 ### Game files and mods
 
@@ -154,6 +162,7 @@ fallback path.
 | Microsoft sign-in | `login.microsoftonline.com` |
 | Xbox Live / XSTS | `user.auth.xboxlive.com`, `xsts.auth.xboxlive.com` |
 | Minecraft Services (login, entitlements, profile) | `api.minecraftservices.com` |
+| The player's own skin texture, for the head shown next to their name (URL taken from the profile reply, fetched at most once per sign-in and only when the cached copy's SHA-256 no longer matches) | `textures.minecraft.net` |
 | Game files (version manifest, client, libraries, assets, Java runtime) | `piston-meta.mojang.com`, `piston-data.mojang.com`, `launchermeta.mojang.com`, `libraries.minecraft.net`, `resources.download.minecraft.net` |
 | NeoForge | `maven.neoforged.net` |
 | Mods | `cdn.modrinth.com`, `maven.ftb.dev` |

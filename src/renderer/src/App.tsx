@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { PlayerHead } from './PlayerHead'
 import { resolveOptions } from '../../shared/options'
 import type { AccountSummary, LauncherJson, OptionRules, PackOption, Phase, ProgressEvent, Settings, UpdateStatus } from '../../shared/types'
 
@@ -207,7 +208,10 @@ export default function App(): React.JSX.Element {
         <div className="account">
           {account ? (
             <>
-              <span className="chip">{account.name}</span>
+              <span className="chip">
+                <PlayerHead account={account} />
+                {account.name}
+              </span>
               <button className="link" onClick={() => void signOut()} disabled={busy}>
                 Sign out
               </button>

@@ -34,6 +34,8 @@ export const ALLOWED_DOWNLOAD_HOSTS = [
   'release-assets.githubusercontent.com',
   'raw.githubusercontent.com',
   'underfr.github.io',
+  // Player skins: the profile reply's skins[].url, whose last path segment is the file's sha256.
+  'textures.minecraft.net',
 ]
 
 export const INSTANCE_ID = 'consortium'

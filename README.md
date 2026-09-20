@@ -15,6 +15,10 @@ right folder, install this NeoForge version" routine, and nothing more. Using it
 invited player who installs the same NeoForge version and mods by hand can join with the
 official Minecraft Launcher in exactly the same way.
 
+**Players:** the step-by-step install guide, with screenshots, is
+[`docs/INSTALL_GUIDE.md`](docs/INSTALL_GUIDE.md) (download, SmartScreen, sign-in, first Play, the
+8 GB preset, optional mods and shaders, updates, troubleshooting, uninstall).
+
 ## Responsible party and contact
 
 - **Owner and maintainer:** underfr (https://github.com/underfr), on behalf of The Consortium
@@ -42,6 +46,7 @@ table shows what is actually implemented on `main` today.
 | Optional mods (pack `[option]` entries, settings, low preset rule from launcher.json) | implemented, smoke-tested (`scripts/smoke-pack.ts` runs 7 to 9, `scripts/smoke-settings.ts`) | `src/main/core/pack.ts`, `src/shared/options.ts`, `src/renderer/src/App.tsx` |
 | Player head next to the signed-in name (skin from the profile reply, cached by sha256, cropped like the game, default skin from the player's own client jar or a project-drawn fallback face) | implemented, smoke-tested (`scripts/smoke-head.ts`, including one real download from the skin CDN); visual check in the app waits for a real sign-in | `src/main/core/skin.ts`, `src/main/core/png.ts`, `src/renderer/src/PlayerHead.tsx` |
 | Code-signed release builds | planned | see "Updates and signing" |
+| Player install guide with screenshots | written for 0.3.1 (signed-out screens captured from the real window; the signed-in, Preparing and Running screens and a run-through by a beta tester are still open) | `docs/INSTALL_GUIDE.md`, `docs/img/` |
 
 ## Microsoft application registration
 

@@ -148,15 +148,14 @@ handful of graphics values, and only when the low preset is on.
 
 ## 6. Joining the server
 
-Today the game opens on its **title screen**: the launcher can hand the server address to the game
-and join it directly, but the address is only filled in once the season server is up. Until then:
+The pack carries the server address (`consortium.undernetworks.fr:31483`), so the game joins the server
+by itself at every Play and you see the world instead of the title screen. If it ever opens on the
+title screen (an old pack, a launcher started offline):
 
 1. Open **Multiplayer**, then **Add Server**.
-2. Type the address staff posted on Discord (PLACEHOLDER: the address is announced with the season
-   start) and click **Done**, then join.
+2. Type `consortium.undernetworks.fr:31483` (the port matters) and click **Done**, then join.
 
-Once the address is published in the pack, the game joins the server by itself at every Play and
-you will see the world instead of the title screen. If the server answers *You are not
+If the server answers *You are not
 whitelisted on this server*, your player name has not been added yet: post it on Discord exactly as
 the launcher shows it.
 
@@ -255,7 +254,7 @@ browser. The most common ones:
 | A phase fails with a checksum or download error | A file arrived damaged or a host is blocked (the list is in the README). Press Play again: finished files are kept and only the missing ones are fetched. Antivirus software sometimes quarantines `runtime\java21\bin\java.exe` or `javaw.exe` on the first run: restore it and exclude the folder, then Play again. |
 | *Update check failed: ...* in the banner | GitHub unreachable. Harmless; try later. |
 | The game stutters or freezes on an 8 GB machine | Tick **Low RAM / low graphics (8 GB machines)** and close the browser while playing. Shaders are for 16 GB machines with a dedicated GPU. |
-| The game opens on the title screen | Normal until the server address is published (section 6). Add the server by hand. |
+| The game opens on the title screen | The address comes with the pack (section 6); add `consortium.undernetworks.fr:31483` by hand if it is missing. |
 | *You are not whitelisted on this server* | Post your exact player name on Discord; staff add it. |
 | The window is empty or the launcher will not start | Delete `%APPDATA%\consortium-launcher\state\settings.json` (your preset and option choices reset to defaults) and start again. If it still fails, uninstall, delete the data folder (section 11) and reinstall; keep `instances\consortium\saves` and `screenshots` if you want them. |
 

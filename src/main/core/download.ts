@@ -59,7 +59,11 @@ const MAX_REDIRECTS = 5
 // URL policy and User-Agent
 // ---------------------------------------------------------------------------
 
-/** Every request must be https and target one of the hosts in ALLOWED_DOWNLOAD_HOSTS. */
+/**
+ * Every request must be https and target one of the hosts in ALLOWED_DOWNLOAD_HOSTS. Development only: with
+ * CONSORTIUM_DEV_LOCAL_PACK=1 in the environment, plain http to 127.0.0.1 is allowed too, so the dev client can sync
+ * an unpublished pack served from the repository (tools/devtest/serve-pack.mjs); nothing else changes.
+ */
 export function assertAllowedUrl(url: string): void {
   let parsed: URL
   try {
@@ -67,6 +71,7 @@ export function assertAllowedUrl(url: string): void {
   } catch (err) {
     throw new DownloadError(`This download address is not valid: ${url}`, url, { reason: 'policy', cause: err })
   }
+  if (parsed.protocol === 'http:' && parsed.hostname === '127.0.0.1' && process.env['CONSORTIUM_DEV_LOCAL_PACK'] === '1') return
   if (parsed.protocol !== 'https:') {
     throw new DownloadError(`Only secure (https) downloads are allowed, refusing: ${url}`, url, { reason: 'policy' })
   }

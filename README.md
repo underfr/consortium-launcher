@@ -170,12 +170,12 @@ fallback path.
 | The player's own skin texture, for the head shown next to their name (URL taken from the profile reply, fetched at most once per sign-in and only when the cached copy's SHA-256 no longer matches) | `textures.minecraft.net` |
 | Game files (version manifest, client, libraries, assets, Java runtime) | `piston-meta.mojang.com`, `piston-data.mojang.com`, `launchermeta.mojang.com`, `libraries.minecraft.net`, `resources.download.minecraft.net` |
 | NeoForge | `maven.neoforged.net` |
-| Mods | `cdn.modrinth.com`, `maven.ftb.dev` |
+| Mods | `cdn.modrinth.com`, `maven.ftb.dev`, and since 0.3.2 the CurseForge CDN `mediafilez.forgecdn.net` and `edge.forgecdn.net` for the one mod that exists only there (Productive Metalworks, pack 0.11.0); every mod file is checked against the hash in the pack manifest |
 | Modpack manifest | `underfr.github.io` (GitHub Pages) |
 | Launcher updates | `github.com`, `objects.githubusercontent.com` |
 | Game process (not the launcher), unchanged vanilla behaviour | `sessionserver.mojang.com`, `api.minecraftservices.com`, Mojang telemetry endpoints |
 
-Launcher downloads are HTTPS only and restricted to this allow-list in code.
+Launcher downloads are HTTPS only and restricted to this allow-list in code (a development-only environment variable, `CONSORTIUM_DEV_LOCAL_PACK=1`, additionally allows plain http to 127.0.0.1 so the dev client can sync an unpublished pack served from the repository; it changes nothing else and is never set by the launcher).
 
 ## Updates and signing
 

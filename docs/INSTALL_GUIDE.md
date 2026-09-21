@@ -9,7 +9,7 @@ looks different, check the release notes on GitHub or ask on Discord.
 The launcher does one thing: it signs you in with your own Microsoft account, installs the exact
 game, loader and mod versions the server runs, keeps them up to date and starts the game. It never
 sees your password, contains no purchase or donation flow, and everything it downloads comes from
-Mojang, NeoForge, Modrinth, the FTB Maven and the pack's own GitHub page. The full list of hosts is
+Mojang, NeoForge, Modrinth, the FTB Maven, the CurseForge CDN (one mod) and the pack's own GitHub page. The full list of hosts is
 in the [README](../README.md#network-endpoints).
 
 Using it is optional: if you would rather install NeoForge 21.1.250 and the mods by hand, the

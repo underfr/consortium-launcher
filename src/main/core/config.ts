@@ -29,6 +29,10 @@ export const ALLOWED_DOWNLOAD_HOSTS = [
   'maven.neoforged.net',
   'cdn.modrinth.com',
   'maven.ftb.dev',
+  // CurseForge CDN: the file links of mods that exist only there (Productive Metalworks since pack 0.11.0); the
+  // metafile carries the sha256, so a swapped file is refused like any other.
+  'mediafilez.forgecdn.net',
+  'edge.forgecdn.net',
   'github.com',
   'objects.githubusercontent.com',
   'release-assets.githubusercontent.com',
